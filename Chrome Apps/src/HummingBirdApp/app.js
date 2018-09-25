@@ -162,28 +162,8 @@
         //(when the client doesn't open a long
         //term port for communication)
         port.onMessage.addListener(function (request) {
-            //the message is asking for the status of the hummingbird (connected or disconnected)
-            if (request.message === "STATUS") {
-                if (connection === -1) //not connected
-                    sendResponse({status: false, duo: true}); //send status to Scratch
-                else {
-                    if (isDuo)
-                        sendResponse({status: true, duo: true});
-                    else
-                        sendResponse({status: true, duo: false});
-                }
-            }
-            //the message is asking for sensor information
-            else if (request.message === "POLL") {
-                sendResponse({
-                    port1: sensor_nums[0],
-                    port2: sensor_nums[1],
-                    port3: sensor_nums[2],
-                    port4: sensor_nums[3]
-                });
-            }
             //the message is asking for tts
-            else if (request.message === "SPEAK") {
+            if (request.message === "SPEAK") {
                 chrome.tts.speak(request.val); //speak phrase using text to speech
             }
             else { // setting things on Hummingbird, no return report
@@ -220,10 +200,7 @@
             if (connection === -1) //not connected
                 sendResponse({status: false}); //send tatus to Scratch
             else {
-                if (isDuo)
-                    sendResponse({status: true, duo: true});
-                else
-                    sendResponse({status: true, duo: false});
+                sendResponse({status: true, duo: isDuo});
             }
         }
         //the message is asking for sensor information

@@ -1,4 +1,4 @@
-(function (ext) {
+(function () {
     var hummingbirdAppID = "lfloofocohhfeeoohpokmljiinfmpenj"; //unique app ID for Hummingbird Scratch App
     //port connecting to chrome app
     var hPort;
@@ -40,181 +40,270 @@
                     console.log("isDuo: " + isDuo);
                     hPort = chrome.runtime.connect(hummingbirdAppID);
                     hPort.onMessage.addListener(onMsgHummingbird);
+                    console.log(hPort.onMessage);
                 }
                 hStatus = 2;
                 setTimeout(getHummingbirdStatus, 1000);
             }
         });
     };
-    //all the below functions take in a portnum, it is assumed that the port
-    //has the appropriate device connected to it. i.e. getDistance(1) assumes
-    //a distance sensor is actually connected in port 1. If a different device
-    //is connected the information received will not be useful.
 
-    //setters for motors, LEDs, servos, and vibration
-    ext.setHummingbirdMotor = function (portnum, velocity) {
-        var realPort = portnum - 1; //convert from zero-indexed
-        var portString = realPort.toString(); //convert to string
-        var direction;
-        if (velocity < 0) {
-            direction = "1".charCodeAt(0);
-            velocity = fitTo255(Math.floor(velocity * -2.55));
+    var ext = {
+        //all the below functions take in a portnum, it is assumed that the port
+        //has the appropriate device connected to it. i.e. getDistance(1) assumes
+        //a distance sensor is actually connected in port 1. If a different device
+        //is connected the information received will not be useful.
+
+        //setters for motors, LEDs, servos, and vibration
+        setHummingbirdMotor: (function(){
+            var motors;
+            function setMotorVelocity(port, velocity) {
+                function callback() {
+                    if (motors[port] === velocity) {
+                        delete motors[port];
+                    }
+                    else {
+                        setMotorVelocity(port, window.birdbrain.motors[port]);
+                    }
+                }
+                var report = {
+                    message: "M".charCodeAt(0),
+                    port: port.toString().charCodeAt(0),
+                    direction: (velocity < 0 ? 1 : 0).toString().charCodeAt(0),
+                    velocity: Math.abs(velocity),
+
+                    callback: callback
+                };
+
+                hPort.postMessage(report);
+            }
+            return function (portnum, velocity) {
+                var realPort = portnum - 1; //convert from zero-indexed
+                velocity = fitTo255(Math.floor(Math.abs(velocity) * 2.55));
+
+                if (motors[realPort] === undefined) {
+                    setMotorVelocity(realPort, velocity)
+                }
+
+                motors[realPort] = velocity;
+            }
+        })(),
+        setTriLed: (function() {
+            var triLEDs = {};
+            function setLEDIntensities(port, intensities) {
+                function callback() {
+                    if (JSON.stringify(triLEDs[port]) === JSON.stringify(intensities)) {
+                        delete triLEDs[port];
+                    }
+                    else {
+                        setLEDIntensities(port, triLEDs[port]);
+                    }
+                }
+
+                var report = {
+                    message:"O".charCodeAt(0),
+                    port: port.toString().charCodeAt(0),
+                    red: intensities[0],
+                    green: intensities[1],
+                    blue: intensities[2],
+
+                    callback: callback
+                };
+                hPort.postMessage(report);
+            }
+            return function (portnum, rednum, greennum, bluenum) {
+                var realPort = portnum - 1; //convert from zero-indexed
+                var realIntensities = [rednum, greennum, bluenum].map(function(intensity) {
+                    return Math.floor(Math.max(Math.min(intensity*2.55, 255), 0));
+                });
+
+                if (triLEDs[realPort] === undefined) {
+                    setLEDIntensities(realPort, realIntensities);
+                }
+
+                triLEDs[realPort] = realIntensities;
+            };
+        })(),
+        setLed: (function() {
+            function setLEDIntensity(port, intensity) {
+                var LEDs = {};
+                function callback() {
+                    if (LEDs[port] === intensity) {
+                        delete LEDs[port];
+                    }
+                    else {
+                        setLEDIntensity(port, LEDs[port]);
+                    }
+                }
+
+                var report = {
+                    message:"L".charCodeAt(0),
+                    port: port.toString().charCodeAt(0),
+                    intensity: intensity,
+
+                    callback: callback
+                };
+                hPort.postMessage(report);
+            }
+            return function (portnum, intensitynum) {
+                var realPort = portnum - 1;
+                var realIntensity = fitTo255(Math.floor(intensitynum * 2.55));
+
+                if (LEDs[realPort] === undefined) {
+                  setLEDIntensity(realPort, realIntensity);
+                }
+
+                LEDs[realPort] = realIntensity;
+            };
+        })(),
+        setServo: (function() {
+            var servos = {};
+            function setServoAngle(port, angle) {
+                function callback() {
+                    if (servos[port] === angle) {
+                        delete servos[port];
+                    }
+                    else {
+                        setServoAngle(port, servos[port]);
+                    }
+                }
+                var report = {
+                    message: "S".charCodeAt(0),
+                    port: port.toString().charCodeAt(0),
+                    angle: angle,
+
+                    callback: callback
+                };
+                hPort.postMessage(report);
+            }
+            return function (portnum, ang) {
+                var realPort = portnum - 1; //convert to zero-indexed number
+                var realAngle = Math.max(Math.min((ang * 1.25), 225.0), 0.0);
+
+                if (servos[realPort] === undefined) {
+                    setServoAngle(realPort, realAngle);
+                }
+
+                servos[realPort] = realAngle;
+            };
+        })(),
+        setVibration: (function() {
+            var vibrations = {};
+            function setVibrationIntensity(port, intensity) {
+                function callback() {
+                    if (vibrations[port] === intensity) {
+                        delete vibrations[port];
+                    }
+                    else {
+                        setVibrationIntensity(port, vibrations[port]);
+                    }
+                }
+                var report = {
+                    message: "V".charCodeAt(0),
+                    port: port.toString().charCodeAt(0),
+                    intensity: intensity,
+
+                    callback: callback
+                };
+                hPort.postMessage(report);
+            }
+            return function (portnum, intensitynum) {
+                var realPort = portnum - 1; //convert to zero-indexed number
+                var realIntensity = fitTo255(Math.floor(intensitynum * 2.55));
+
+                if (vibrations[realPort] === undefined) {
+                  setServoIntensity(realPort, realIntensity);
+                }
+
+                vibrations[realPort] = realIntensity;
+            };
+        })(),
+
+
+        //getters for sensor information
+        getHummingbirdTemp: function (port) {
+            //returns temperature in Celsius degrees
+            return Math.floor(((sensorvalue[port - 1] - 127) / 2.4 + 25) * 100 / 100);
+        },
+        getDistance: function (port) {
+            var reading;
+            var polynomial;
+            if (isDuo){
+                reading = sensorvalue[port - 1] * 4;
+                if (reading < 130) {
+                    return 100;
+                }
+                reading = reading - 120;
+                if (reading > 680) {
+                    return 5;
+                }
+                polynomial = [
+                    +90.707167605683000,
+                    -0.756893112198934,
+                    +0.003416264518201,
+                    -0.000008279033021,
+                    +0.000000010057143,
+                    -0.000000000004789
+                ];
+            }
+            else{
+                reading = sensorvalue[port-1];
+                if(reading < 23){
+                    return 80;
+                }
+                polynomial = [
+                    +206.76903754529479,
+                    -9.3402257299483011,
+                    +0.19133513242939543,
+                    -0.0019720997497951645,
+                    +9.9382154479167215*Math.pow(10, -6),
+                    -1.9442731496914311*Math.pow(10, -8)
+                ];
+            }
+            var distance = 0;
+            // Evaluate ax^5 + bx^4 + cx^3  dx^2 + ex + f
+            for (var i = 0; i < 6; i++) {
+                distance += Math.pow(reading, i) * polynomial[i];
+            }
+            return Math.floor(distance);
+        },
+        getVolt: function (port) {
+            //returns voltage 0-5V
+            return Math.floor(100 * sensorvalue[port - 1] / 51.0) / 100;
+        },
+        getSound: function (port) {
+            //sound is already approximately on a 0-100 scale, so it does not need to be scaled
+            return sensorvalue[port - 1];
+        },
+        getRaw: function (port) {
+            //converts to 0 to 100 scale
+            return Math.floor(sensorvalue[port - 1] / 2.55);
+        },
+        hSpeak: function (phrase) {
+            //uses Chrome text to speech API to speak the phrase
+            var report = {message: "SPEAK", val: phrase};
+            hPort.postMessage(report);
+        },
+        _shutdown: function () {
+            //sends disconnect to Hummingbird
+            var report = {message: "R".charCodeAt(0)};
+            hPort.postMessage(report);
+        },
+        resetAll: function () {
+            //sends reset to Hummingbird
+            var report = {message: "X".charCodeAt(0)};
+            hPort.postMessage(report);
+        },
+        _getStatus: function () {
+            var currStatus = hStatus;
+            if (currStatus === 2)
+                return {status: 2, msg: 'Connected'};
+            else if (currStatus === 1)
+                return {status: 1, msg: 'Hummingbird Not Connected'};
+            else
+                return {status: 0, msg: 'Chrome App Not Connected'};
         }
-        else {
-            direction = "0".charCodeAt(0);
-            velocity = fitTo255(Math.floor(velocity * 2.55));
-        }
-        var report = {
-            message: "M".charCodeAt(0),
-            port: portString.charCodeAt(0),
-            dir: direction, //direction
-            vel: velocity //speed
-        };
-        hPort.postMessage(report);
-    };
-
-    ext.setTriLed = function (portnum, rednum, greennum, bluenum) {
-        var realPort = portnum - 1; //convert from zero-indexed
-        var portString = realPort.toString(); //convert to string
-        var realRed = fitTo255(Math.floor(rednum * 2.55));
-        var realGreen = fitTo255(Math.floor(greennum * 2.55));
-        var realBlue = fitTo255(Math.floor(bluenum * 2.55));
-        var report = {
-            message: "O".charCodeAt(0),
-            port: portString.charCodeAt(0),
-            red: realRed,
-            green: realGreen,
-            blue: realBlue
-        };
-        hPort.postMessage(report);
-    };
-
-    ext.setLed = function (portnum, intensitynum) {
-        var realPort = portnum - 1;
-        var portString = realPort.toString();
-        var realIntensity = fitTo255(Math.floor(intensitynum * 2.55));
-        var report = {
-            message: "L".charCodeAt(0),
-            port: portString.charCodeAt(0),
-            intensity: realIntensity
-        };
-        hPort.postMessage(report);
-    };
-
-    ext.setServo = function (portnum, ang) {
-        var realPort = portnum - 1; //convert to zero-indexed number
-        var portString = realPort.toString(); //convert to string
-        var realAngle = Math.max(Math.min((ang * 1.25), 225.0), 0.0);
-        var report = {
-            message: "S".charCodeAt(0),
-            port: portString.charCodeAt(0),
-            angle: realAngle
-        };
-        hPort.postMessage(report);
-    };
-
-    ext.setVibration = function (portnum, intensitynum) {
-        var realPort = portnum - 1; //convert to zero-indexed number
-        var portString = realPort.toString(); //convert to string
-        var realIntensity = fitTo255(Math.floor(intensitynum * 2.55));
-        var report = {
-            message: "V".charCodeAt(0),
-            port: portString.charCodeAt(0),
-            intensity: realIntensity
-        };
-        hPort.postMessage(report);
-    };
-
-    //getters for sensor information
-
-    ext.getHummingbirdTemp = function (port) {
-        //returns temperature in Celsius degrees
-        return Math.floor(((sensorvalue[port - 1] - 127) / 2.4 + 25) * 100 / 100);
-    };
-
-    ext.getDistance = function (port) {
-      var reading, sensor_val_square,distance;
-      if (isDuo){
-          reading = sensorvalue[port - 1] * 4;
-          if (reading < 130) {
-              return 100;
-          }
-          else { //formula based on mathematical regression
-              reading = reading - 120;
-              if (reading > 680)
-                  distance = 5.0;
-              else {
-                  sensor_val_square = reading * reading;
-                  distance = sensor_val_square * sensor_val_square * reading * -0.000000000004789
-                      + sensor_val_square * sensor_val_square * 0.000000010057143
-                      - sensor_val_square * reading * 0.000008279033021
-                      + sensor_val_square * 0.003416264518201
-                      - reading * 0.756893112198934
-                      + 90.707167605683000;
-              }
-              return parseInt(distance);
-          }
-      }
-      else{
-          reading = sensorvalue[port-1];
-          if(reading < 23){
-            return 80;
-          }
-          else { //formula based on mathematical regression
-            sensor_val_square = reading * reading;
-            distance =
-                      206.76903754529479-9.3402257299483011*reading
-                    + 0.19133513242939543*sensor_val_square
-                    - 0.0019720997497951645*sensor_val_square * reading
-                    + 9.9382154479167215*Math.pow(10, -6)*sensor_val_square*sensor_val_square
-                    - 1.9442731496914311*Math.pow(10, -8)*sensor_val_square*sensor_val_square*reading;
-            return parseInt(distance);
-        }
-      }
-    };
-
-    ext.getVolt = function (port) {
-        //returns voltage 0-5V
-        return Math.floor(100 * sensorvalue[port - 1] / 51.0) / 100;
-    };
-
-    ext.getSound = function (port) {
-        //sound is already approximately on a 0-100 scale, so it does not need to be scaled
-        return sensorvalue[port - 1];
-    };
-
-    ext.getRaw = function (port) {
-        //converts to 0 to 100 scale
-        return Math.floor(sensorvalue[port - 1] / 2.55);
-    };
-
-    ext.hSpeak = function (phrase) {
-        //uses Chrome text to speech API to speak the phrase
-        var report = {message: "SPEAK", val: phrase};
-        hPort.postMessage(report);
-    };
-
-    ext._shutdown = function () {
-        //sends disconnect to Hummingbird
-        var report = {message: "R".charCodeAt(0)};
-        hPort.postMessage(report);
-    };
-
-    ext.resetAll = function () {
-        //sends reset to Hummingbird
-        var report = {message: "X".charCodeAt(0)};
-        hPort.postMessage(report);
-    };
-
-    ext._getStatus = function () {
-        var currStatus = hStatus;
-        if (currStatus === 2)
-            return {status: 2, msg: 'Connected'};
-        else if (currStatus === 1)
-            return {status: 1, msg: 'Hummingbird Not Connected'};
-        else
-            return {status: 0, msg: 'Chrome App Not Connected'};
-    };
+    }
 
     var descriptor = {
         blocks: [
@@ -239,4 +328,4 @@
     };
     getHummingbirdStatus();
     ScratchExtensions.register('Hummingbird', descriptor, ext);
-})({});
+})();
